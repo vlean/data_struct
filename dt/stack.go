@@ -20,8 +20,28 @@ type STACK int
 const (
 	LockStack STACK = iota
 	CasStack
+	SliceStack
 	LinkStack
 )
+
+type StackSlice struct {
+	data []interface{}
+}
+
+func (s *StackSlice) Pop() interface{} {
+	length := len(s.data)
+	if length == 0 {
+		return nil
+	}
+	x := s.data[length-1]
+	s.data = s.data[:length-1]
+	return x
+}
+
+func (s *StackSlice) Push(i interface{}) bool {
+	s.data = append(s.data, i)
+	return true
+}
 
 type StackLock struct {
 	data   []interface{}
@@ -45,6 +65,8 @@ func NewStack(length int32, tp STACK) Stack {
 			length: length,
 			count:  0,
 		}
+	case SliceStack:
+		return &StackSlice{data: make([]interface{}, 0, length)}
 	case LinkStack:
 		return &StackLink{
 			head: unsafe.Pointer(&Node{nil, nil}),
@@ -108,7 +130,6 @@ func (s *StackCAS) Push(val interface{}) bool {
 			break
 		}
 	}
-
 	// 栈顶先变化，数据延后更新，线程可能会被切走，导致pop出nil数据
 	s.data[old] = val
 	return true
@@ -127,7 +148,7 @@ func (s *StackLink) Pop() interface{} {
 	for {
 		old := s.head
 		x := (*Node)(atomic.LoadPointer(&old))
-		if x.val == nil && x.prev == nil {
+		if x.val == nil || x.prev == nil {
 			return nil
 		}
 

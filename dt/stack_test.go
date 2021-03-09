@@ -77,12 +77,12 @@ func TestStack_Push(t *testing.T) {
 // random test
 
 func TestWrite(t *testing.T) {
-	stack := NewStack(20, LinkStack)
+	stack := NewStack(20, SliceStack)
 	wg := &sync.WaitGroup{}
 	wg.Add(10)
 	for i := 0; i < 10; i++ {
 		go func(i int) {
-			for x := 0; x < 1e7; x++ {
+			for x := 0; x < 1e6; x++ {
 				ret := stack.Push(i)
 				if ret != true {
 					t.Error("push err", i)
@@ -109,12 +109,64 @@ func TestWrite(t *testing.T) {
 	log.Println("remain:", remain)
 }
 
-func TestStackLink_Push(t *testing.T) {
-	stack := NewStack(10, LinkStack)
-	stack.Push(1)
-	stack.Push(2)
-	stack.Push(3)
-	for i := 0; i < 10; i++ {
-		log.Println(i, stack.Pop())
+func TestBase(t *testing.T) {
+	tests := []struct {
+		name  string
+		stack STACK
+	}{
+		{"link", LinkStack},
+		{"cas", CasStack},
+		{"slice", SliceStack},
+		{"lock", LockStack},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stack := NewStack(1000, test.stack)
+			for i := 0; i < 100; i++ {
+				stack.Push(i)
+			}
+			for i := 0; i < 50; i++ {
+				stack.Pop()
+			}
+
+			if rem := remain(stack); rem != 50 {
+				t.Error("remain:", rem)
+			}
+		})
+	}
+}
+
+func BenchmarkStack(b *testing.B) {
+	benchmarks := []struct {
+		name  string
+		stack STACK
+	}{
+		{"link", LinkStack},
+		{"cas", CasStack},
+		{"slice", SliceStack},
+		{"lock", LockStack},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			stack := NewStack(1000, bm.stack)
+			for i := 0; i < b.N; i++ {
+				stack.Push(i)
+				stack.Pop()
+			}
+			if rem := remain(stack); rem != 0 {
+				b.Error("remain:", rem)
+			}
+		})
+	}
+}
+
+func remain(stack Stack) int {
+	i := 0
+	for {
+		if stack.Pop() == nil {
+			break
+		}
+		i++
+	}
+	return i
 }
