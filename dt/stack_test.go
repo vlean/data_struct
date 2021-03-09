@@ -7,18 +7,18 @@ import (
 	"testing"
 )
 
-func NewStackPush(length int32, val ...interface{}) *StackLock {
-	stack := NewStack(length)
+func NewStackPush(length int32, val ...interface{}) Stack {
+	stack := NewStack(length, LockStack)
 	for _, v := range val {
 		stack.Push(v)
 	}
 	return stack
 }
 
-func getStacks() map[string]*StackLock {
-	return map[string]*StackLock{
-		"zero":       NewStack(0),
-		"empty":      NewStack(5),
+func getStacks() map[string]Stack {
+	return map[string]Stack{
+		"zero":       NewStack(0, LockStack),
+		"empty":      NewStack(5, LockStack),
 		"full":       NewStackPush(1, "full"),
 		"remain_one": NewStackPush(5, "one", "two", "three", "four"),
 	}
@@ -77,7 +77,7 @@ func TestStack_Push(t *testing.T) {
 // random test
 
 func TestWrite(t *testing.T) {
-	stack := NewStack(20)
+	stack := NewStack(20, LinkStack)
 	wg := &sync.WaitGroup{}
 	wg.Add(10)
 	for i := 0; i < 10; i++ {
@@ -98,30 +98,23 @@ func TestWrite(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
-	log.Println("remain ", stack.count)
+	remain := 0
+	for {
+		x := stack.Pop()
+		if x == nil {
+			break
+		}
+		remain++
+	}
+	log.Println("remain:", remain)
 }
 
-func TestCASWrite(t *testing.T) {
-	stack := NewStackCAS(20)
-	wg := &sync.WaitGroup{}
-	wg.Add(10)
+func TestStackLink_Push(t *testing.T) {
+	stack := NewStack(10, LinkStack)
+	stack.Push(1)
+	stack.Push(2)
+	stack.Push(3)
 	for i := 0; i < 10; i++ {
-		go func(i int) {
-			for x := 0; x < 1e6; x++ {
-				ret := stack.Push(i)
-				if ret != true {
-					t.Error("push err", i)
-					continue
-				}
-
-				y := stack.Pop()
-				if y == nil {
-					t.Error("err pop y is :", y, stack.count, stack.data)
-				}
-			}
-			wg.Done()
-		}(i)
+		log.Println(i, stack.Pop())
 	}
-	wg.Wait()
-	log.Println("remain ", stack.count)
 }
